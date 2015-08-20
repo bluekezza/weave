@@ -164,7 +164,7 @@
         ]
   (vec (vals selected-map-of-ids-docs))))
 
-(s/defn ^:private pop-first :- [(s/one s/Command "Command") (s/one c/ProcessState "ProcessState")]
+(s/defn ^:private pop-first :- [(s/one c/Command "Command") (s/one c/ProcessState "ProcessState")]
   [state :- c/ProcessState
    from  :- s/Keyword]
   (let [command (first (from state))
@@ -334,16 +334,15 @@
         matches (filterv #(re-matches uber-pattern (:name %)) foreign-keys)]
     matches))
 
-(s/defn ^:private ->state :- ProcessState
+(s/defn ^:private ->state :- c/ProcessState
   "create the initial state for the processor"
   [foreign-keys :-   [c/ForeignKey]
    root-documents :- [c/Document]
-   id-generate-fn :- Object  ;no-args function]
+   id-generate-fn :- c/IdGeneratorFn]
   (when tracing (trace "->state"))
   (let [doc-ids (vec (map :_id root-documents))
         scan-commands (vec (map #(->scan %) root-documents))]
-    {:baggage baggage
-     :foreign-keys foreign-keys    ;explains the joins we should make
+    {:foreign-keys foreign-keys    ;explains the joins we should make
      :results doc-ids              ;store the ids of the root documents we will return
      :documents (into {} (map (fn [doc] [(:_id doc) doc]) root-documents)) ;keeps the state of all documents
      :scans scan-commands       ;initiate the process with a scan
@@ -367,7 +366,7 @@
         path-in-dot-notation (query/nest path)
         query {path-in-dot-notation {"$in" wip-values}}
         _ (when tracing (trace "query->" collection query))
-        results (mc/find-as-maps db collection query)
+        results (mc/find-maps db collection query)
         _ (when tracing (trace "query<-" (count results)))]
     results))
 
@@ -376,7 +375,7 @@
    state :- c/ProcessState
    {:keys [id collection path values values->joins] :as command} :- c/FetchCommand]
   (when tracing (trace "_fetch " (command-summary command)))
-  (let [docs (get-documents-with-values baggage path collection values)
+  (let [docs (get-documents-with-values db path collection values)
         state (handle-fetch-results state command docs)]
     state))
 
@@ -406,7 +405,7 @@
    where      :- c/Query
    join       :- [c/ForeignKey]]
   (when tracing (trace (str "(weave/find-maps db " collection " " where " " join)))
-  (let [results (mg/find-maps db collection where)
+  (let [results (mc/find-maps db collection where)
         _ (when tracing (trace "primary-fetch " results))
         state (->state join results c/uuid)
         wip-state (process db state)

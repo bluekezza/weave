@@ -3,15 +3,22 @@
             [clojure.tools.logging :as log]))
 
 ;; SCHEMAS
+(defn Fn
+  "a prototype way to describe the schema for a functions input and output types"
+  [arg-types return-type]
+  Object)
+
 (def Str (s/both s/Str (s/pred #(not (clojure.string/blank? %)))))
+
+(def UUID Str)
 
 (def DB Object)
 
 (def Query clojure.lang.PersistentHashMap)
 
-(def DocumentId s/Str)
+(def DocumentId Str)
 
-(def Document Object) ;;TODO, make this more specific
+(def Document clojure.lang.PersistentHashMap)
 
 (def CollectionName s/Keyword)
 
@@ -21,14 +28,14 @@
 
 (def DocumentJoin {:foreign-path PropertyPath
                    :foreign-type DocumentType
-                   :value s/Str
+                   :value Str
                    :insertion-path PropertyPath
                    :insertion-type (s/enum :list :value)
                    })
 
 (def ForeignKeyTypes [:static :dynamic :multi])
 
-(def ForeignKey {:name s/Str
+(def ForeignKey {:name Str
                  :type (apply s/enum ForeignKeyTypes)
                  :from DocumentType
                  (s/optional-key :from-path) PropertyPath
@@ -42,21 +49,19 @@
 
 (def CommandType (s/enum :fetch :scan :join))
 
-(def UUID s/Str)
-
 (def ScanCommand
   {:type (s/enum :scan)
-   :doc-id s/Str
+   :doc-id Str
    })
 
-(def JoinCommandId s/Str)
+(def JoinCommandId Str)
 
 (def JoinCommand
   {:id JoinCommandId   
    :type (s/enum :join)
    :parent-id DocumentId
-   :join /DocumentJoin
-   :document (s/maybe Document)   ;<- this is where the fetch will inject the document for the join
+   :join DocumentJoin
+   :document (s/maybe Document)
    })
 
 (def FetchCommand
@@ -69,19 +74,19 @@
 
 (def Command (s/either FetchCommand ScanCommand JoinCommand))
 
+(def IdGeneratorFn (Fn [] Str))
+
 (def ProcessState
   {:foreign-keys [ForeignKey]
    :results [DocumentId]
    :documents {DocumentId Document}
-   ;:commands
    :scans [ScanCommand]
    :joins {JoinCommandId JoinCommand}
-   :joins-seq [JoinCommandId] ;- clojure.lang.PersistentList?
+   :joins-seq [JoinCommandId]
    :fetches [FetchCommand]
-   :id-gen Object ;- no-args function that returns an id
+   :id-gen IdGeneratorFn
    :complete s/Bool
-   }
-)
+   })
 
 ;; UTILITIES
 (defn uuid [] (str (java.util.UUID/randomUUID)))
